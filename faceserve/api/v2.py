@@ -18,7 +18,7 @@ Load models and thresh.
 load_dotenv()
 # Model
 TRITON_URL = os.getenv("TRITON_URL", default="localhost:6000")
-IS_GRPC = os.getenv("IS_GRPC", default=False)
+IS_GRPC = bool(os.getenv("IS_GRPC", default=False))
 DETECTION_NAME= os.getenv("DETECTION_NAME", default="face_detection")
 SPOOFING_NAME = os.getenv("SPOOFING_NAME", default="face_spoofing")
 RECOGNITION_NAME = os.getenv("RECOGNITION_NAME", default="face_recognition")
@@ -28,8 +28,9 @@ DETECTION_THRESH = float(os.getenv("DETECTION_THRESH", default=0.7))
 SPOOFING_THRESH = float(os.getenv("SPOOFING_THRESH", default=0.4))
 RECOGNITION_THRESH = float(os.getenv("RECOGNITION_THRESH", default=0.4))
 # Face db storage.
+DB_NAME = os.getenv("DB_NAME", default="faces_collection")
 FACES = QdrantFaceDatabase(
-    collection_name="faces_collection",
+    collection_name=DB_NAME,
 )
 FACES_IMG_DIR = pathlib.Path(os.getenv("IMG_DIR", default="face_images"))
 FACES_IMG_DIR.mkdir(exist_ok=True)
@@ -55,11 +56,11 @@ Router
 router = APIRouter(prefix="/v1")
 
 @router.post("/register")
-async def register(id: str, request: FaceRequest, groups_id: str = "default"):
+async def register(id: str, request: FaceRequest, group_id: str = "default"):
     images = [base64.b64decode(x) for x in request.base64images]
     images = [Image.open(BytesIO(x)) for x in images]
     hashes_path = service.register_face(
-        images=images, id=id, group_id=groups_id, face_folder=FACES_IMG_DIR
+        images=images, person_id=id, group_id=group_id, face_folder=FACES_IMG_DIR
     )
     return JSONResponse(
         content=hashes_path, status_code=status.HTTP_200_OK
@@ -100,28 +101,47 @@ async def delete_face(face_id: str|None = None, id: str|None = None, group_id: s
     return JSONResponse(content=message, status_code=status.HTTP_200_OK)
 
 @router.post("/check/face")
-async def check_face_images(request: FaceRequest, id: str|None = None, group_id: str|None = None):
+async def check_face_images(request: FaceRequest, id: str|None = None):
     images = [base64.b64decode(x) for x in request.base64images]
     images = [Image.open(BytesIO(x)) for x in images]
     return [service.check_face(
         image=img, 
         thresh=RECOGNITION_THRESH, 
         person_id=id, 
-        group_id=group_id,
-        save_dir=FACES_IMG_DIR,
     ) for img in images]
 
 @router.post("/check/face/files")
 async def check_face_images(
     files: list[UploadFile], 
-    id: str|None = None, 
-    group_id: str|None = None
+    id: str|None = '0', 
 ):
     images = [Image.open(BytesIO(await x.read())).convert("RGB") for x in files]
     return [service.check_face(
         image=img, 
         thresh=RECOGNITION_THRESH, 
         person_id=id, 
+    ) for img in images]
+
+@router.post("/check/attendance")
+async def check_face_images(request: FaceRequest, group_id: str|None = None):
+    images = [base64.b64decode(x) for x in request.base64images]
+    images = [Image.open(BytesIO(x)) for x in images]
+    return [service.check_attendance(
+        image=img, 
+        thresh=RECOGNITION_THRESH, 
         group_id=group_id,
-        save_dir=FACES_IMG_DIR,
+        face_folder=FACES_IMG_DIR,
+    ) for img in images]
+
+@router.post("/check/attendance/files")
+async def check_face_images(
+    files: list[UploadFile], 
+    group_id: str|None = "default"
+):
+    images = [Image.open(BytesIO(await x.read())).convert("RGB") for x in files]
+    return [service.check_attendance(
+        image=img, 
+        thresh=RECOGNITION_THRESH, 
+        group_id=group_id,
+        face_folder=FACES_IMG_DIR,
     ) for img in images]
