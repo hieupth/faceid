@@ -70,6 +70,9 @@ class QdrantFaceDatabase(InterfaceDatabase):
                 ) for hash_id, face_emb in face_embs 
             ],
         )
+        result = [x for x in self.list_faces(person_id=person_id, group_id=group_id)[0] if x is not None]
+        return [x.id for x in result]
+
 
     def delete_face(self, face_id: str, person_id: str, group_id: str):
         '''Delete a face of a given person's id or group's id in collection'''
@@ -180,7 +183,7 @@ class QdrantFaceDatabase(InterfaceDatabase):
             )
         return self._client.scroll(
             collection_name=self.collection_name,
-            limit=1000,
+            limit=10,
             with_payload=True,
         )
     

@@ -345,7 +345,8 @@ class FaceServiceV2(InterfaceService):
             batch_crops.extend(crops_per_image)
         # 3. get valid face -> List of List
         embeddings, valid_crops = self.validate_face(batch_crops)
-        embeddings = [x.tolist() for x in embeddings]
+        embeddings = [x.tolist() for x in embeddings if x is not None]
+        valid_crops = [x for x in valid_crops if x is not None]
 
         # 4. verify
         if len(valid_crops) < len(images) / 2:
@@ -368,7 +369,7 @@ class FaceServiceV2(InterfaceService):
             hashes.append(hashlib.md5(crop_pil.tobytes()).hexdigest())
             # crop_save_paths.append(crop_save_path)
         # 6. save face embedding to database
-        self.facedb.insert_faces(
+        hash_in_db = self.facedb.insert_faces(
             face_embs=zip(hashes, embeddings),
             group_id=group_id,
             person_id=person_id
@@ -376,4 +377,4 @@ class FaceServiceV2(InterfaceService):
         # return {
         #     f"{key}": f"{crop_save_path}" for key, crop_save_path in zip(hashes, crop_save_paths)
         # } 
-        return hashes
+        return hash_in_db
